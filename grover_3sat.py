@@ -3,7 +3,6 @@ from qiskit import QuantumRegister
 from qiskit import ClassicalRegister
 from qiskit import *
 from qiskit.visualization import plot_histogram
-import matplotlib.pyplot as plt
 
 NUM_VARIABLES = 3
 NOT_OPERATOR = "not "
