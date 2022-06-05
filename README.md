@@ -1,5 +1,5 @@
 # grover_3sat
-3-SAT problem solved using Grover's algorithm with the help of Qiskit.
+3-SAT problem solver using Grover's algorithm with the help of Qiskit. (doesn't guarantee to find all solutions, but finds one if the CNF is satisfiable)
 
 ## Requirements
 - python3
