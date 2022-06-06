@@ -77,7 +77,7 @@ def check(variables, clauses):
 
     # Check that the CNF formula is valid and conform to the CNF example syntax
     if len(variables) != NUM_VARIABLES or len(clauses) == 0:
-        print_error("The CNF formula needs exactly {NUM_VARIABLES} different variables, at least one clause, and must be conform to the example CNF.")
+        print_error(f"The CNF formula needs exactly {NUM_VARIABLES} different variables, at least one clause, and must be conform to the example CNF.")
         return -1
 
     # Check that the number of times a variable is used per clause is exactly 1
