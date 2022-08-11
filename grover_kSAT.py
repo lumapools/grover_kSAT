@@ -4,7 +4,6 @@ from qiskit import ClassicalRegister
 from qiskit import *
 from qiskit.visualization import plot_histogram
 
-NUM_VARIABLES = 3
 NOT_OPERATOR = "not "
 OR_OPERATOR = " or "
 AND_OPERATOR = " and "
