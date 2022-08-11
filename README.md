@@ -1,4 +1,4 @@
-# grover_3sat
+# grover_kSAT
 k-SAT problem solver using Grover's algorithm with the help of Qiskit. (doesn't guarantee to find all solutions, but finds one if the CNF is satisfiable and the right number of iterations are given)
 
 ## Requirements
