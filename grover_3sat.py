@@ -21,7 +21,7 @@ def print_error(msg):
     print(f"[ERROR] {msg} Exiting.")
 
 
-def process(cnf):
+def process(num_variables, cnf):
     """Processes a cnf in the form of a string
 
     Parameters
@@ -36,7 +36,7 @@ def process(cnf):
     """
 
     # Default variables, changed later when reading the CNF
-    input_variables = ["x", "y", "z"]
+    input_variables = []
 
     used_variables = set()
     # Split the cnf into clauses
@@ -51,15 +51,15 @@ def process(cnf):
             # Identify the input variables (can be strings not only characters)
             used_variables.add(clause_variables[j].split(" ")[-1])
             clauses[i] = sorted(clause_variables, key=lambda elem: elem.split("not ")[-1])
-    if len(used_variables) != NUM_VARIABLES:
+    if len(used_variables) != num_variables:
         return (list(used_variables), clauses)
-    for i in range(NUM_VARIABLES):
-        input_variables[i] = list(used_variables)[i]
+    for i in range(num_variables):
+        input_variables.append(list(used_variables)[i])
     input_variables.sort()
     return (input_variables, clauses)
 
 
-def check(variables, clauses):
+def check(num_variables, variables, clauses):
     """Checks that the parsed CNF formula is correct and print an error otherwise
 
     Parameters
@@ -76,8 +76,8 @@ def check(variables, clauses):
     """
 
     # Check that the CNF formula is valid and conform to the CNF example syntax
-    if len(variables) != NUM_VARIABLES or len(clauses) == 0:
-        print_error("The CNF formula needs exactly {NUM_VARIABLES} different variables, at least one clause, and must be conform to the example CNF.")
+    if len(variables) != num_variables or len(clauses) == 0:
+        print_error("The CNF formula needs exactly {num_variables} different variables, at least one clause, and must be conform to the example CNF.")
         return -1
 
     # Check that the number of times a variable is used per clause is exactly 1
@@ -91,7 +91,7 @@ def check(variables, clauses):
     return 0
 
 
-def create_qc_info(variables, clauses):
+def create_qc_info(num_variables, variables, clauses):
     """Creates the required information for initializing a quantum circuit
     
     Parameters
@@ -109,15 +109,15 @@ def create_qc_info(variables, clauses):
     
     # variable_name -> qubit index map
     variable_map = {}
-    for i in range(NUM_VARIABLES):
+    for i in range(num_variables):
         variable_map[variables[i]] = i;
     
     # 3 qubits for the inputs and num_clauses + 1 ancillary qubits
-    num_qregs = NUM_VARIABLES + len(clauses) + 1
+    num_qregs = num_variables + len(clauses) + 1
     return (variable_map, num_qregs)
 
 
-def create_circuit(num_qregs):
+def create_circuit(num_variables, num_qregs):
     """Creates an empty circuit with set quantum and classical registers
 
     Parameters
@@ -131,7 +131,7 @@ def create_circuit(num_qregs):
     """
 
     qregs = QuantumRegister(num_qregs,'q')
-    cregs = ClassicalRegister(NUM_VARIABLES, 'c')
+    cregs = ClassicalRegister(num_variables, 'c')
     circuit = QuantumCircuit(qregs, cregs)
     return circuit
 
@@ -152,7 +152,7 @@ def initialize_circuit(circuit):
     circuit.barrier(circuit.qubits)
 
 
-def prepare_state_superposition(circuit):
+def prepare_state_superposition(num_variables, circuit):
     """Preparate a state of superposition for all the qubits ("quantum parallelism")
 
     Parameters
@@ -161,12 +161,12 @@ def prepare_state_superposition(circuit):
         the circuit to initialize
     """
 
-    circuit.h(circuit.qubits[:NUM_VARIABLES])
+    circuit.h(circuit.qubits[:num_variables])
     circuit.h(circuit.qubits[-1])
     circuit.barrier(circuit.qubits)
 
 
-def add_3or(circuit, clause_index, clause_qubit_map, negated_map, reverse_circuit):
+def add_3or(num_variables, circuit, clause_index, clause_qubit_map, negated_map, reverse_circuit):
     """Adds a 3-input OR gate to a circuit
 
     Parameters
@@ -189,13 +189,13 @@ def add_3or(circuit, clause_index, clause_qubit_map, negated_map, reverse_circui
     circuit.barrier(circuit.qubits)
     reverse_circuit.barrier(reverse_circuit.qubits)
     # Using De Morgan's law
-    for i in range(NUM_VARIABLES):
+    for i in range(num_variables):
         circuit.x(i)
         reverse_circuit.x(i)
 
     # Create the multicontrolled-not gate for propagating the value of a or b or c to the corresponding ancilla qubit
-    circuit.mcx(list(range(NUM_VARIABLES)), clause_qubit_map[clause_index])
-    reverse_circuit.mcx(list(range(NUM_VARIABLES)), clause_qubit_map[clause_index])
+    circuit.mcx(list(range(num_variables)), clause_qubit_map[clause_index])
+    reverse_circuit.mcx(list(range(num_variables)), clause_qubit_map[clause_index])
     circuit.x(clause_qubit_map[clause_index])
     reverse_circuit.x(clause_qubit_map[clause_index])
 
@@ -203,7 +203,7 @@ def add_3or(circuit, clause_index, clause_qubit_map, negated_map, reverse_circui
     reverse_circuit.barrier(reverse_circuit.qubits)
 
     # Reverse the negated qubits (due to De Morgan's law) to keep their initial state
-    for i in range(NUM_VARIABLES):
+    for i in range(num_variables):
         circuit.x(i)
         reverse_circuit.x(i)
 
@@ -218,7 +218,7 @@ def add_3or(circuit, clause_index, clause_qubit_map, negated_map, reverse_circui
     reverse_circuit.barrier(reverse_circuit.qubits)
 
 
-def add_and(circuit):
+def add_and(num_variables, circuit):
     """Adds a 3-input AND gate to a circuit
 
     Parameters
@@ -227,11 +227,11 @@ def add_and(circuit):
         the circuit to add the AND gate to
     """
     circuit.barrier(circuit.qubits)
-    circuit.mcx(list(range(NUM_VARIABLES, circuit.num_qubits-1)), circuit.num_qubits-1)
+    circuit.mcx(list(range(num_variables, circuit.num_qubits-1)), circuit.num_qubits-1)
     circuit.barrier(circuit.qubits)
 
 
-def add_uf(circuit, variable_map, variables, clauses, reverse_circuit):
+def add_uf(num_variables, circuit, variable_map, variables, clauses, reverse_circuit):
     """Adds the unitary U_f (the boolean function itself) to the circuit
 
     Parameters
@@ -249,7 +249,7 @@ def add_uf(circuit, variable_map, variables, clauses, reverse_circuit):
     # Map the clauses to the ancillary qubits (the last qubit will store the overall result)
     clause_qubit_map = {}
     for i in range(len(clauses)):
-        clause_qubit_map[i] = circuit.qubits[NUM_VARIABLES + i]
+        clause_qubit_map[i] = circuit.qubits[num_variables + i]
 
     # clause index -> list of qubits that should be negated
     negated_map = {}
@@ -264,14 +264,14 @@ def add_uf(circuit, variable_map, variables, clauses, reverse_circuit):
         negated_map[i] = sorted(list(map(lambda negated_variable: variable_map[negated_variable], negated_variables)))
 
         # For each clause we can now create the appropriate quantum gates that corresponds to that clause
-        add_3or(circuit, i, clause_qubit_map, negated_map, reverse_circuit)
+        add_3or(num_variables, circuit, i, clause_qubit_map, negated_map, reverse_circuit)
 
-    add_and(circuit)
+    add_and(num_variables, circuit)
     circuit.barrier(circuit.qubits)
 
 
 
-def prepare_circuit(variables, clauses, initialize=True):
+def prepare_circuit(num_variables, variables, clauses, initialize=True):
     """Prepares a circuit from known paramteres
 
     Parameters
@@ -286,15 +286,15 @@ def prepare_circuit(variables, clauses, initialize=True):
     circuit: QuantumCircuit
         the prepared circuit
     """
-    (variable_map, num_qregs) = create_qc_info(variables, clauses)
-    circuit = create_circuit(num_qregs)
+    (variable_map, num_qregs) = create_qc_info(num_variables, variables, clauses)
+    circuit = create_circuit(num_variables, num_qregs)
     if initialize:
         initialize_circuit(circuit)
     return circuit
 
 
 
-def add_reflector(circuit):
+def add_reflector(num_variables, circuit):
     """Adds the reflector operator to 3-qubit circuit
 
     Parameters
@@ -304,19 +304,19 @@ def add_reflector(circuit):
     """
 
     circuit.barrier(circuit.qubits)
-    circuit.h(circuit.qubits[:NUM_VARIABLES])
-    circuit.x(circuit.qubits[:NUM_VARIABLES])
-    circuit.barrier(circuit.qubits[:NUM_VARIABLES])
-    circuit.h(circuit.qubits[2])
-    circuit.ccx(circuit.qubits[0], circuit.qubits[1], circuit.qubits[2])
-    circuit.h(circuit.qubits[2])
-    circuit.barrier(circuit.qubits[:NUM_VARIABLES])
-    circuit.x(circuit.qubits[:NUM_VARIABLES])
-    circuit.h(circuit.qubits[:NUM_VARIABLES])
+    circuit.h(circuit.qubits[:num_variables])
+    circuit.x(circuit.qubits[:num_variables])
+    circuit.barrier(circuit.qubits[:num_variables])
+    circuit.h(circuit.qubits[num_variables-1])
+    circuit.mcx(circuit.qubits[:num_variables-1], circuit.qubits[num_variables-1])
+    circuit.h(circuit.qubits[num_variables-1])
+    circuit.barrier(circuit.qubits[:num_variables])
+    circuit.x(circuit.qubits[:num_variables])
+    circuit.h(circuit.qubits[:num_variables])
     circuit.barrier(circuit.qubits)
 
 
-def build_grover(variables, clauses):
+def build_grover(num_variables, variables, clauses):
     """Builds Grover's box
     
     Parameters
@@ -332,18 +332,18 @@ def build_grover(variables, clauses):
         the produced Grover's box
     """
     
-    reverse_circuit = prepare_circuit(variables, clauses, initialize=False) # Reversing U_f's operations
+    reverse_circuit = prepare_circuit(num_variables, variables, clauses, initialize=False) # Reversing U_f's operations
     
-    (variable_map, num_qregs) = create_qc_info(variables, clauses)
-    circuit = create_circuit(num_qregs)
-    add_uf(circuit, variable_map, variables, clauses, reverse_circuit)
+    (variable_map, num_qregs) = create_qc_info(num_variables, variables, clauses)
+    circuit = create_circuit(num_variables, num_qregs)
+    add_uf(num_variables, circuit, variable_map, variables, clauses, reverse_circuit)
     reversed_circuit = reverse_circuit.inverse()
     circuit = circuit.compose(reversed_circuit) # Invert the previous transformations except the "and" operation
-    add_reflector(circuit)
+    add_reflector(num_variables, circuit)
     return circuit
 
 
-def measure_circuit(circuit):
+def measure_circuit(num_variables, circuit):
     """Adds a z-basis measurement operations to a circuit
 
     Parameters
@@ -352,8 +352,8 @@ def measure_circuit(circuit):
         the circuit to measure
     """
 
-    for i in range(NUM_VARIABLES):
-        circuit.measure(circuit.qubits[i], circuit.clbits[2-i])
+    for i in range(num_variables):
+        circuit.measure(circuit.qubits[i], circuit.clbits[num_variables-1-i])
 
 def run_simulation(circuit):
     """Runs the simulation on the qasm_simulator
@@ -403,32 +403,40 @@ def satisfies(clauses, possible_solution):
 
 def general_3sat(show_circuit=False):
 
+    num_variables = int(input("Enter the number of variables: "))
+    if num_variables <= 0:
+        print_error("The number of variables has to be a positive number.")
+        return
+
     input_cnf = input("Enter the 3SAT formula (CNF) [example: (x or y or not z) and (not x or y or z)]: ")
+    
+    (variables, clauses) = process(num_variables, input_cnf)
 
-    (variables, clauses) = process(input_cnf)
-
-    #  (¬x∨¬y∨¬z)∧(¬x∨¬y∨z)∧(¬x∨y∨z)∧(x∨¬y∨z)∧(x∨y∨¬z)∧(x∨y∨z)
-
-    if check(variables, clauses) == 0:
+    if check(num_variables, variables, clauses) == 0:
         # 4 is arbitrary. Normally, if a solution is findable, it can be found in 3 or less iterations but 4 sometimes works too
         solutions = set()
         circuit = None
-        for i in range(1, 4):
-            circuit = prepare_circuit(variables, clauses)
-            prepare_state_superposition(circuit)
-            grover_circuit = build_grover(variables, clauses)
-            for _ in range(1, i):
-                circuit = circuit.compose(grover_circuit)
-            measure_circuit(circuit)
-            counts = run_simulation(circuit)
-            max_count = max(counts, key=counts.get)
-            if satisfies(clauses, max_count):
-                solutions.add(max_count)
+        num_grover_iterations = int(input("Enter the number of times Grover's box should be iterated (>= 0): "))
+        if num_grover_iterations < 0:
+            return
+
+        circuit = prepare_circuit(num_variables, variables, clauses)
+        prepare_state_superposition(num_variables, circuit)
+        grover_circuit = build_grover(num_variables, variables, clauses)
+
+        for _ in range(num_grover_iterations):
+            circuit = circuit.compose(grover_circuit)
+
+        measure_circuit(num_variables, circuit)
+        counts = run_simulation(circuit)
+
+        max_count = max(counts, key=counts.get)
         if show_circuit:
             print(circuit)
-        if len(solutions) == 0:
-            print("No solutions found.")
+        if satisfies(clauses, max_count):
+            print(f"Solution found: {max_count}")
         else:
-            print(f"Possible solution(s): {solutions}") 
+            print("No solution found.")
+
 
 general_3sat(show_circuit=True)
