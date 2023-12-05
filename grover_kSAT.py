@@ -1,8 +1,12 @@
 from qiskit import QuantumCircuit
 from qiskit import QuantumRegister
 from qiskit import ClassicalRegister
-from qiskit import *
+from qiskit_aer import AerSimulator
 from qiskit.visualization import plot_histogram
+from qiskit import transpile
+import matplotlib.pyplot as plt
+from qiskit_ibm_runtime import QiskitRuntimeService
+from qiskit_aer.noise import NoiseModel
 
 NOT_OPERATOR = "not "
 OR_OPERATOR = " or "
@@ -363,8 +367,12 @@ def run_simulation(circuit):
         the circuit to simulate
     """
     
-    backend = Aer.get_backend('qasm_simulator')
-    job = backend.run(transpile(circuit, backend), shots=16384)
+    noisy_backend = QiskitRuntimeService().get_backend("ibm_sherbrooke")
+    backend_noise_model = NoiseModel.from_backend(noisy_backend) # Get the noise model
+    backend = AerSimulator(
+        noise_model=None
+    )
+    job = backend.run(transpile(circuit, backend), shots=2000)
     result = job.result()
     counts = result.get_counts(circuit)
     return counts
@@ -436,6 +444,9 @@ def general_3sat(show_circuit=False):
             print(f"Solution found: {max_count}")
         else:
             print("No solution found.")
+        return counts
 
 
-general_3sat(show_circuit=True)
+counts = general_3sat(show_circuit=True)
+plot_histogram(counts)
+plt.show()
